@@ -1,0 +1,56 @@
+services:
+  mysql:
+    image: mysql:8.4
+    network_mode: host
+    environment:
+      MYSQL_DATABASE: efootball
+      MYSQL_USER: efootball
+      MYSQL_PASSWORD: alloylocal
+      MYSQL_ROOT_PASSWORD: alloyroot
+    volumes:
+      - alloy-mysql-data:/var/lib/mysql
+      - ./app/efootball25/backend/efootball.sql:/docker-entrypoint-initdb.d/efootball.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    image: node:22-bookworm
+    working_dir: /workspace/app/efootball25/backend
+    network_mode: host
+    volumes:
+      - .:/workspace
+      - alloy-backend-node-modules:/workspace/app/efootball25/backend/node_modules
+    environment:
+      PORT: 3001
+      DB_HOST: 127.0.0.1
+      DB_USER: efootball
+      DB_PASSWORD: alloylocal
+      DB_NAME: efootball
+      NODE_ENV: production
+      ALLOW_CORS_URL: http://localhost:8080
+      IS_ALLOY: ${IS_ALLOY:-true}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: bash -lc "npm ci && npm start"
+
+  frontend:
+    image: node:22-bookworm
+    working_dir: /workspace/app/efootball25/frontend
+    network_mode: host
+    volumes:
+      - .:/workspace
+      - alloy-frontend-node-modules:/workspace/app/efootball25/frontend/node_modules
+    environment:
+      IS_ALLOY: ${IS_ALLOY:-true}
+    depends_on:
+      - backend
+    command: bash -lc "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
+
+volumes:
+  alloy-mysql-data:
+  alloy-backend-node-modules:
+  alloy-frontend-node-modules:
